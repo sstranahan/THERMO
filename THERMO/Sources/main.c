@@ -33,8 +33,6 @@ void initGPIO(void);
 
 void initLCD(void);
 
-void initErrMsg(void);
-
 unsigned char scanKeypad(void);
 
 unsigned int getTmpSetting(void);
@@ -160,6 +158,11 @@ void main(void){                          //OPEN MAIN
         }
       
       }
+   
+   PORTE = PORTE | 0b00000100;     //make PE2=1 to turn on relay
+   MSDelay(500);         //change the delay size to see what happens
+   PORTE = PORTE & 0b11111011;      //Make PE2=0 to turn off relay
+   MSDelay(500);         //change delay size....
       
    } 
 }
@@ -176,6 +179,7 @@ void initGPIO(void){
   DDRP |=0x0F;                           // RGB LED OUTPUTS
   PTP |=0x0F;                            // TURN OFF 7SEG LED
   DDRK = 0xFF;                           // PORTK IS LCD MODULE
+  DDRE = DDRE | 0b00000100;              // PE2 as output
   
   return;
 }
