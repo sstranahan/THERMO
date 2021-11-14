@@ -51,6 +51,8 @@ void writeDisplay(void);
 
 void storeTempF2Arr(unsigned int tempF);
 
+void driveRelay(void);
+
 ////////////////////////////// UTILS ////////////////////////////////////
 
 void MSDelay(unsigned int itime);
@@ -68,6 +70,8 @@ void clearSetArray(void);
 void cursorReturn(void);
 
 char* int2char3dig (unsigned int num);
+
+void incCursor(void);
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -119,10 +123,6 @@ void main(void){                          //OPEN MAIN
    unsigned int tempSetting = 999;
    unsigned int tempF = 999;
    
-   unsigned int i;
-   
-   char *currTmpArr;
-   
    initGPIO();                            // Initialize GPIO systems
    initLCD();                             // Initialize LCD module
    
@@ -130,13 +130,11 @@ void main(void){                          //OPEN MAIN
    clearInputArray();   
    
    while(1){
-      
-      //  PORTB = 0xFF; // LEDS on (working)
-   
+         
       writeDisplay();
             
       tempSetting = getTmpSetting();
-      
+            
       if (tempSetting != 999){            // Error if 999
       
         setTemp = tempSetting;    
@@ -145,25 +143,9 @@ void main(void){                          //OPEN MAIN
       
       tempF = readTempSensor();
       
-      if (tempF != 999){                  // Error if 999
-      
-        currTempF = tempF;
-        
-        currTmpArr = int2char3dig(currTempF);
-        
-        for (i = 0; i < 3; i++){
-        
-          dispArr[i + CURR_TEMP_OFFSET] = currTmpArr[i];
-        
-        }
-      
-      }
+      storeTempF2Arr(tempF);
    
-   PORTE = PORTE | 0b00000100;     //make PE2=1 to turn on relay
-   MSDelay(500);         //change the delay size to see what happens
-   PORTE = PORTE & 0b11111011;      //Make PE2=0 to turn off relay
-   MSDelay(500);         //change delay size....
-      
+      driveRelay();
    } 
 }
 
@@ -222,24 +204,43 @@ unsigned char readTempSensor(void){
 
     ATD0CTL5 = 0x85;                      //Channel 5 (right justified, unsigned,single-conver,one chan only) 
 
-    while(!(ATD0STAT0 & 0x80));
+    while(!(ATD0STAT0 & 0x80));           // Wait for new data on ADC
+    
     tempReading = ATD0DR0L;
-    tempC = tempReading / 4;
-    tempC = tempC - 20;                   // Correct temp in C now
     
-    tempF = tempC * 9 / 5 + 32;
+    tempReading = tempReading * 3300 / 1024;
     
+    tempC = (tempReading) / 10;
     
-    PORTB = ATD0DR0L;                     //dump it on LEDs
-    MSDelay(2);                           //optional
+    tempF = tempC * 9 / 5 + 32;           
     
     return tempF;
 }
 
 void storeTempF2Arr(unsigned int tempF){
+   
+   int i;
+   char *currTmpArr;
     
-    
-
+   if (tempF != 999){                  // Error if 999
+      
+        currTempF = tempF;
+        
+        currTmpArr = int2char3dig(currTempF);
+        
+        for (i = 0; i < 3; i++){
+        
+          if(currTmpArr[i] >= '0' && currTmpArr[i] <= '9'){
+          
+            dispArr[i + CURR_TEMP_OFFSET] = currTmpArr[i];          
+          
+          }else{
+          
+            dispArr[i + CURR_TEMP_OFFSET] = ' ';
+          
+          }        
+        }      
+    }
 }
 
 unsigned char scanKeypad(void){
@@ -384,6 +385,18 @@ unsigned int getTmpSetting(void){
             
     }
   }
+  
+  if (tempSetting > 120){                       // Error - out of normal range of operation
+      
+    inputErr();
+      
+  }
+      
+  if( tempSetting == 0){
+      
+    inputErr();
+      
+  }
       
   return tempSetting;
 }
@@ -464,10 +477,30 @@ void writeDisplay(void){
    
   clrDisp();
    
-  for(i = 0; i < 64; i++){          
+  for(i = 0; i < 64; i++){
+              
     DATWRT4(dispArr[i]);                  // Write character to display
   }
+  
+  
+  
   cursorReturn();                         // Cursor to home position
+}
+
+
+void driveRelay(void){
+
+    if(setTemp < currTempF){
+   
+          PORTE = PORTE | 0b00000100;     //make PE2=1 to turn on relay
+          PORTB = PORTB | 0b00000001;     // Turn on LED0
+   
+    }else{
+   
+          PORTE = PORTE & 0b11111011;      //Make PE2=0 to turn off relay
+          PORTB = PORTB & 0b11111110;     // Turn off LED0
+   
+    }
 }
 
 
@@ -563,6 +596,14 @@ char* int2char3dig (unsigned int N){
   sprintf(charArray, "%d", N);
   
   return charArray; 
+}
+
+void incCursor(void){
+
+  COMWRT4(0x14);              // Move cursor right
+
+  return;
+
 }
 
 /////////////////////////////////////////////////////////////////////////
